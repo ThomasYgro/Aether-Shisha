@@ -8,6 +8,7 @@ function TableModal({ shop, table, onClose }) {
   const [editingTable, setEditingTable] = useState(false)
   const [editName, setEditName] = useState(table.name)
   const [editCategory, setEditCategory] = useState(table.category || '')
+  const [notes, setNotes] = useState(table.notes || '')
 
   useEffect(() => {
     if (table.status !== 'active') return
@@ -39,7 +40,7 @@ function TableModal({ shop, table, onClose }) {
   async function saveFlavors() {
     const { error } = await supabase
       .from('tables')
-      .update({ selected_flavor_ids: selectedFlavorIds })
+      .update({ selected_flavor_ids: selectedFlavorIds, notes: notes.trim() || null })
       .eq('id', table.id)
 
     if (error) console.error('Error saving flavors:', error)
@@ -54,6 +55,7 @@ function TableModal({ shop, table, onClose }) {
         status: 'active',
         started_at: new Date().toISOString(),
         coals_changed_at: null,
+        notes: notes.trim() || null,
       })
       .eq('id', table.id)
 
@@ -79,6 +81,7 @@ function TableModal({ shop, table, onClose }) {
         started_at: null,
         coals_changed_at: null,
         selected_flavor_ids: [],
+        notes: null,
       })
       .eq('id', table.id)
 
@@ -178,6 +181,13 @@ function TableModal({ shop, table, onClose }) {
               selectedFlavorIds={selectedFlavorIds}
               toggleFlavor={toggleFlavor}
             />
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Σημείωση..."
+              rows={2}
+              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm mt-3 resize-none"
+            />
             <div className="flex gap-2 mt-4">
               <button onClick={saveFlavors} className="flex-1 bg-gray-700 rounded py-2 font-semibold hover:bg-gray-600">
                 Αποθήκευση
@@ -196,6 +206,14 @@ function TableModal({ shop, table, onClose }) {
               selectedFlavorIds={selectedFlavorIds}
               toggleFlavor={toggleFlavor}
               readOnly={isOvertime}
+            />
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Σημείωση..."
+              rows={2}
+              disabled={isOvertime}
+              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm mt-3 resize-none disabled:opacity-60"
             />
             <div className="flex gap-2 mt-4">
               {!isOvertime && (
@@ -218,6 +236,11 @@ function TableModal({ shop, table, onClose }) {
               toggleFlavor={toggleFlavor}
               readOnly
             />
+            {notes && (
+              <div className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm mt-3">
+                {notes}
+              </div>
+            )}
             <p className="text-green-400 text-sm mt-2">Καρβουνα αλλάχτηκαν</p>
             <button onClick={endHookah} className="w-full bg-red-600 rounded py-2 font-semibold hover:bg-red-500 mt-4">
               Τέλος
