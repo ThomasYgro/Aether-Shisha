@@ -72,6 +72,7 @@ function TableTile({ table, onSelectTable }) {
 
 function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger }) {
   const [tables, setTables] = useState([])
+  const [zones, setZones] = useState([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [editingShop, setEditingShop] = useState(false)
   const [shopName, setShopName] = useState(shop.name)
@@ -80,9 +81,12 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
   const [addName, setAddName] = useState('')
   const [addCategory, setAddCategory] = useState('')
   const [viewMode, setViewMode] = useState('grid')
+  const [showingAddZone, setShowingAddZone] = useState(false)
+  const [newZoneName, setNewZoneName] = useState('')
 
   useEffect(() => {
     fetchTables()
+    fetchZones()
 
     const channel = supabase
       .channel('tables-changes')
@@ -124,6 +128,16 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
     setTables(withPositions)
   }
 
+  async function fetchZones() {
+    const { data, error } = await supabase
+      .from('map_zones')
+      .select('*')
+      .eq('shop_id', shop.id)
+
+    if (error) console.error('Error fetching zones:', error)
+    else setZones(data)
+  }
+
   function updatePosition(id, x, y, commit) {
     setTables((prev) => prev.map((t) => (t.id === id ? { ...t, pos_x: x, pos_y: y } : t)))
     if (commit) {
@@ -135,6 +149,40 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
           if (error) console.error('Error saving position:', error)
         })
     }
+  }
+
+  function updateZonePosition(id, x, y, commit) {
+    setZones((prev) => prev.map((z) => (z.id === id ? { ...z, pos_x: x, pos_y: y } : z)))
+    if (commit) {
+      supabase
+        .from('map_zones')
+        .update({ pos_x: Math.round(x), pos_y: Math.round(y) })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.error('Error saving zone position:', error)
+        })
+    }
+  }
+
+  async function addZone() {
+    if (!newZoneName.trim()) return
+
+    const { error } = await supabase
+      .from('map_zones')
+      .insert([{ shop_id: shop.id, name: newZoneName.trim(), pos_x: 20, pos_y: 20 }])
+
+    if (error) console.error('Error adding zone:', error)
+    else {
+      setNewZoneName('')
+      setShowingAddZone(false)
+      fetchZones()
+    }
+  }
+
+  async function deleteZone(id) {
+    const { error } = await supabase.from('map_zones').delete().eq('id', id)
+    if (error) console.error('Error deleting zone:', error)
+    else fetchZones()
   }
 
   async function addTable() {
@@ -241,6 +289,15 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
               Χάρτης
             </button>
           </div>
+
+          {viewMode === 'map' && (
+            <button
+              onClick={() => setShowingAddZone(true)}
+              className="bg-gray-700 text-white font-semibold px-4 py-3 rounded hover:bg-gray-600"
+            >
+              + Προσθήκη κατηγορίας
+            </button>
+          )}
         </div>
 
         {viewMode === 'grid' ? (
@@ -258,7 +315,14 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
             </div>
           ))
         ) : (
-          <TableMap tables={tables} onSelectTable={onSelectTable} onUpdatePosition={updatePosition} />
+          <TableMap
+            tables={tables}
+            zones={zones}
+            onSelectTable={onSelectTable}
+            onUpdatePosition={updatePosition}
+            onUpdateZonePosition={updateZonePosition}
+            onDeleteZone={deleteZone}
+          />
         )}
 
         {showingFlavors && (
@@ -298,6 +362,33 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
                   Άκυρο
                 </button>
                 <button onClick={addTable} className="flex-1 bg-white text-black rounded py-2 font-semibold">
+                  Προσθήκη
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showingAddZone && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4">
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm">
+              <h3 className="font-bold mb-4">Νέα κατηγορία χάρτη</h3>
+              <input
+                type="text"
+                value={newZoneName}
+                onChange={(e) => setNewZoneName(e.target.value)}
+                placeholder="π.χ. DJ, Arena++"
+                className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white w-full mb-4 text-base"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowingAddZone(false); setNewZoneName('') }}
+                  className="flex-1 bg-gray-700 rounded py-2"
+                >
+                  Άκυρο
+                </button>
+                <button onClick={addZone} className="flex-1 bg-white text-black rounded py-2 font-semibold">
                   Προσθήκη
                 </button>
               </div>
