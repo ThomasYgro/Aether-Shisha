@@ -16,8 +16,8 @@ function formatTime(totalSeconds) {
 }
 
 const TILE_SIZE = 90
-export const CANVAS_WIDTH = 2000
-export const CANVAS_HEIGHT = 1400
+export const CANVAS_WIDTH = 3000
+export const CANVAS_HEIGHT = 2200
 
 function MapTile({ table, onSelectTable, onPositionChange }) {
   const [now, setNow] = useState(Date.now())
@@ -165,25 +165,58 @@ function ZoneLabel({ zone, onPositionChange, onDelete }) {
 }
 
 function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZonePosition, onDeleteZone }) {
+  const [zoom, setZoom] = useState(1)
+
+  function zoomIn() {
+    setZoom((z) => Math.min(1.5, +(z + 0.1).toFixed(2)))
+  }
+  function zoomOut() {
+    setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))
+  }
+
   return (
-    <div className="overflow-auto border border-gray-800 rounded-lg" style={{ height: '65vh' }}>
-      <div
-        style={{
-          position: 'relative',
-          width: CANVAS_WIDTH,
-          height: CANVAS_HEIGHT,
-          backgroundImage:
-            'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-          backgroundColor: '#000',
-        }}
-      >
-        {zones.map((zone) => (
-          <ZoneLabel key={zone.id} zone={zone} onPositionChange={onUpdateZonePosition} onDelete={onDeleteZone} />
-        ))}
-        {tables.map((table) => (
-          <MapTile key={table.id} table={table} onSelectTable={onSelectTable} onPositionChange={onUpdatePosition} />
-        ))}
+    <div className="relative">
+      <div className="absolute top-2 right-2 z-20 flex bg-gray-900 border border-gray-700 rounded overflow-hidden">
+        <button onClick={zoomOut} className="px-3 py-2 text-white text-lg font-bold hover:bg-gray-800">
+          −
+        </button>
+        <span className="px-2 py-2 text-white text-xs flex items-center">{Math.round(zoom * 100)}%</span>
+        <button onClick={zoomIn} className="px-3 py-2 text-white text-lg font-bold hover:bg-gray-800">
+          +
+        </button>
+      </div>
+
+      <div className="overflow-auto border border-gray-800 rounded-lg" style={{ height: '65vh' }}>
+        <div
+          style={{
+            position: 'relative',
+            width: CANVAS_WIDTH * zoom,
+            height: CANVAS_HEIGHT * zoom,
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: CANVAS_WIDTH,
+              height: CANVAS_HEIGHT,
+              transform: `scale(${zoom})`,
+              transformOrigin: 'top left',
+              backgroundImage:
+                'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)',
+              backgroundSize: '40px 40px',
+              backgroundColor: '#000',
+            }}
+          >
+            {zones.map((zone) => (
+              <ZoneLabel key={zone.id} zone={zone} onPositionChange={onUpdateZonePosition} onDelete={onDeleteZone} />
+            ))}
+            {tables.map((table) => (
+              <MapTile key={table.id} table={table} onSelectTable={onSelectTable} onPositionChange={onUpdatePosition} />
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
