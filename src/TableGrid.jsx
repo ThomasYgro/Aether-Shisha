@@ -184,6 +184,11 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
     if (error) console.error('Error deleting zone:', error)
     else fetchZones()
   }
+async function renameZone(id, name) {
+    const { error } = await supabase.from('map_zones').update({ name }).eq('id', id)
+    if (error) console.error('Error renaming zone:', error)
+    else fetchZones()
+  }
 
   async function addTable() {
     if (!addName.trim()) return
@@ -309,6 +314,15 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
             onDeleteZone={deleteZone}
           />
         )}
+          <TableMap
+            tables={tables}
+            zones={zones}
+            onSelectTable={onSelectTable}
+            onUpdatePosition={updatePosition}
+            onUpdateZonePosition={updateZonePosition}
+            onRenameZone={renameZone}
+            onDeleteZone={deleteZone}
+          />
 
         {showingFlavors && (
           <FlavorManager shop={shop} onClose={() => setShowingFlavors(false)} />

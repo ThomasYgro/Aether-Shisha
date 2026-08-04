@@ -98,45 +98,7 @@ function MapTile({ table, onSelectTable, onPositionChange }) {
   )
 }
 
-function ZoneLabel({ zone, onPositionChange, onDelete }) {
-  const [dragging, setDragging] = useState(false)
-  const dragStart = useRef({ x: 0, y: 0, origX: 0, origY: 0 })
-  const moved = useRef(false)
-
-  function handlePointerDown(e) {
-    e.stopPropagation()
-    e.target.setPointerCapture(e.pointerId)
-    moved.current = false
-    dragStart.current = {
-      x: e.clientX,
-      y: e.clientY,
-      origX: zone.pos_x ?? 0,
-      origY: zone.pos_y ?? 0,
-    }
-    setDragging(true)
-  }
-
-  function handlePointerMove(e) {
-    if (!dragging) return
-    const dx = e.clientX - dragStart.current.x
-    const dy = e.clientY - dragStart.current.y
-    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved.current = true
-    const newX = Math.max(0, Math.min(CANVAS_WIDTH - 20, dragStart.current.origX + dx))
-    const newY = Math.max(0, Math.min(CANVAS_HEIGHT - 20, dragStart.current.origY + dy))
-    onPositionChange(zone.id, newX, newY, false)
-  }
-
-  function handlePointerUp() {
-    if (!dragging) return
-    setDragging(false)
-    if (moved.current) {
-      onPositionChange(zone.id, zone.pos_x, zone.pos_y, true)
-    } else {
-      const confirmed = window.confirm(`Διαγραφή κατηγορίας "${zone.name}";`)
-      if (confirmed) onDelete(zone.id)
-    }
-  }
-
+function ZoneLabel({ zone, onSelect }) {
   return (
     <>
       <div
@@ -152,11 +114,9 @@ function ZoneLabel({ zone, onPositionChange, onDelete }) {
         }}
       />
       <div
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        style={{ position: 'absolute', left: zone.pos_x ?? 0, top: zone.pos_y ?? 0, touchAction: 'none' }}
-        className={`cursor-grab active:cursor-grabbing select-none text-white font-bold text-sm uppercase tracking-wide whitespace-nowrap ${dragging ? 'z-10' : ''}`}
+        onClick={() => onSelect(zone)}
+        style={{ position: 'absolute', left: zone.pos_x ?? 0, top: zone.pos_y ?? 0 }}
+        className="cursor-pointer select-none text-white font-bold text-sm uppercase tracking-wide whitespace-nowrap px-1"
       >
         {zone.name}
       </div>
@@ -164,8 +124,46 @@ function ZoneLabel({ zone, onPositionChange, onDelete }) {
   )
 }
 
-function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZonePosition, onDeleteZone }) {
+function ZoneEditModal({ zone, onClose, onRename, onMove, onDelete }) {
+  const [name, setName] = useState(zone.name)
+  const STEP = 30
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm text-white">
+        <h3 className="font-bold mb-4">Επεξεργασία κατηγορίας</h3>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white w-full mb-5 text-base"
+        />
+        <p className="text-gray-400 text-sm mb-2">Μετακίνηση:</p>
+        <div className="flex flex-col items-center gap-1 mb-5">
+          <button onClick={() => onMove(0, -STEP)} className="bg-gray-800 rounded px-4 py-2 text-lg">↑</button>
+          <div className="flex gap-1">
+            <button onClick={() => onMove(-STEP, 0)} className="bg-gray-800 rounded px-4 py-2 text-lg">←</button>
+            <button onClick={() => onMove(STEP, 0)} className="bg-gray-800 rounded px-4 py-2 text-lg">→</button>
+          </div>
+          <button onClick={() => onMove(0, STEP)} className="bg-gray-800 rounded px-4 py-2 text-lg">↓</button>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <button onClick={onClose} className="flex-1 bg-gray-700 rounded py-2">Άκυρο</button>
+          <button onClick={() => onRename(name)} className="flex-1 bg-white text-black rounded py-2 font-semibold">
+            Αποθήκευση
+          </button>
+        </div>
+        <button onClick={onDelete} className="w-full border border-red-900 text-red-800 rounded py-2 text-sm font-semibold">
+          Διαγραφή
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZonePosition, onRenameZone, onDeleteZone }) {
   const [zoom, setZoom] = useState(1)
+  const [editingZone, setEditingZone] = useState(null)
 
   function zoomIn() {
     setZoom((z) => Math.min(1.5, +(z + 0.1).toFixed(2)))
@@ -174,26 +172,37 @@ function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZone
     setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))
   }
 
+  function handleMove(dx, dy) {
+    const newX = Math.max(0, Math.min(CANVAS_WIDTH - 20, (editingZone.pos_x ?? 0) + dx))
+    const newY = Math.max(0, Math.min(CANVAS_HEIGHT - 20, (editingZone.pos_y ?? 0) + dy))
+    onUpdateZonePosition(editingZone.id, newX, newY, true)
+    setEditingZone({ ...editingZone, pos_x: newX, pos_y: newY })
+  }
+
+  function handleRename(name) {
+    if (!name.trim()) return
+    onRenameZone(editingZone.id, name.trim())
+    setEditingZone(null)
+  }
+
+  function handleDelete() {
+    const confirmed = window.confirm(`Διαγραφή κατηγορίας "${editingZone.name}";`)
+    if (confirmed) {
+      onDeleteZone(editingZone.id)
+      setEditingZone(null)
+    }
+  }
+
   return (
     <div className="relative">
       <div className="absolute top-2 right-2 z-20 flex bg-gray-900 border border-gray-700 rounded overflow-hidden">
-        <button onClick={zoomOut} className="px-3 py-2 text-white text-lg font-bold hover:bg-gray-800">
-          −
-        </button>
+        <button onClick={zoomOut} className="px-3 py-2 text-white text-lg font-bold hover:bg-gray-800">−</button>
         <span className="px-2 py-2 text-white text-xs flex items-center">{Math.round(zoom * 100)}%</span>
-        <button onClick={zoomIn} className="px-3 py-2 text-white text-lg font-bold hover:bg-gray-800">
-          +
-        </button>
+        <button onClick={zoomIn} className="px-3 py-2 text-white text-lg font-bold hover:bg-gray-800">+</button>
       </div>
 
       <div className="overflow-auto border border-gray-800 rounded-lg" style={{ height: '65vh' }}>
-        <div
-          style={{
-            position: 'relative',
-            width: CANVAS_WIDTH * zoom,
-            height: CANVAS_HEIGHT * zoom,
-          }}
-        >
+        <div style={{ position: 'relative', width: CANVAS_WIDTH * zoom, height: CANVAS_HEIGHT * zoom }}>
           <div
             style={{
               position: 'absolute',
@@ -210,7 +219,7 @@ function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZone
             }}
           >
             {zones.map((zone) => (
-              <ZoneLabel key={zone.id} zone={zone} onPositionChange={onUpdateZonePosition} onDelete={onDeleteZone} />
+              <ZoneLabel key={zone.id} zone={zone} onSelect={setEditingZone} />
             ))}
             {tables.map((table) => (
               <MapTile key={table.id} table={table} onSelectTable={onSelectTable} onPositionChange={onUpdatePosition} />
@@ -218,6 +227,16 @@ function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZone
           </div>
         </div>
       </div>
+
+      {editingZone && (
+        <ZoneEditModal
+          zone={editingZone}
+          onClose={() => setEditingZone(null)}
+          onRename={handleRename}
+          onMove={handleMove}
+          onDelete={handleDelete}
+        />
+      )}
     </div>
   )
 }
