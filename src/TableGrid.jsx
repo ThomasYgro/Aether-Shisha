@@ -275,21 +275,6 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
             + Προσθήκη τραπεζιού
           </button>
 
-          <div className="flex bg-gray-900 border border-gray-700 rounded overflow-hidden">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-4 py-3 text-sm font-semibold ${viewMode === 'grid' ? 'bg-white text-black' : 'text-gray-300'}`}
-            >
-              Grid
-            </button>
-            <button
-              onClick={() => setViewMode('map')}
-              className={`px-4 py-3 text-sm font-semibold ${viewMode === 'map' ? 'bg-white text-black' : 'text-gray-300'}`}
-            >
-              Χάρτης
-            </button>
-          </div>
-
           {viewMode === 'map' && (
             <button
               onClick={() => setShowingAddZone(true)}
@@ -399,6 +384,20 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
 
       <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)}>
         <div className="flex flex-col gap-1 flex-1">
+          <div className="flex bg-gray-900 border border-gray-700 rounded overflow-hidden mb-3">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`flex-1 px-4 py-3 text-sm font-semibold ${viewMode === 'grid' ? 'bg-white text-black' : 'text-gray-300'}`}
+            >
+              Grid
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`flex-1 px-4 py-3 text-sm font-semibold ${viewMode === 'map' ? 'bg-white text-black' : 'text-gray-300'}`}
+            >
+              Χάρτης
+            </button>
+          </div>
           <button onClick={() => { setShowingFlavors(true); setMenuOpen(false) }} className="text-left text-white hover:text-gray-300 py-3">
             Γεύσεις
           </button>

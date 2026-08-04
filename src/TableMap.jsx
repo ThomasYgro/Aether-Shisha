@@ -138,15 +138,29 @@ function ZoneLabel({ zone, onPositionChange, onDelete }) {
   }
 
   return (
-    <div
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      style={{ position: 'absolute', left: zone.pos_x ?? 0, top: zone.pos_y ?? 0, touchAction: 'none' }}
-      className={`cursor-grab active:cursor-grabbing select-none text-gray-300 font-bold text-sm uppercase tracking-wide border-b border-gray-500 pb-1 whitespace-nowrap ${dragging ? 'z-10' : ''}`}
-    >
-      {zone.name}
-    </div>
+    <>
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: (zone.pos_y ?? 20) + 24,
+          width: CANVAS_WIDTH,
+          height: 1,
+          backgroundColor: 'white',
+          opacity: 0.5,
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        style={{ position: 'absolute', left: zone.pos_x ?? 0, top: zone.pos_y ?? 0, touchAction: 'none' }}
+        className={`cursor-grab active:cursor-grabbing select-none text-white font-bold text-sm uppercase tracking-wide whitespace-nowrap ${dragging ? 'z-10' : ''}`}
+      >
+        {zone.name}
+      </div>
+    </>
   )
 }
 
