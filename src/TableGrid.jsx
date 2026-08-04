@@ -3,6 +3,7 @@ import { supabase } from './supabaseClient'
 import FlavorManager from './FlavorManager'
 import PullToRefresh from './PullToRefresh'
 import SideMenu from './SideMenu'
+import TableMap from './TableMap'
 
 const statusColors = {
   empty: 'bg-white text-black',
@@ -78,6 +79,7 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
   const [showingAddTable, setShowingAddTable] = useState(false)
   const [addName, setAddName] = useState('')
   const [addCategory, setAddCategory] = useState('')
+  const [viewMode, setViewMode] = useState('grid')
 
   useEffect(() => {
     fetchTables()
@@ -103,8 +105,36 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
       .eq('shop_id', shop.id)
       .order('name', { ascending: true })
 
-    if (error) console.error('Error fetching tables:', error)
-    else setTables(data)
+    if (error) {
+      console.error('Error fetching tables:', error)
+      return
+    }
+
+    const withPositions = await Promise.all(
+      data.map(async (t, idx) => {
+        if (t.pos_x == null || t.pos_y == null) {
+          const x = 20 + (idx % 8) * 110
+          const y = 20 + Math.floor(idx / 8) * 110
+          await supabase.from('tables').update({ pos_x: x, pos_y: y }).eq('id', t.id)
+          return { ...t, pos_x: x, pos_y: y }
+        }
+        return t
+      })
+    )
+    setTables(withPositions)
+  }
+
+  function updatePosition(id, x, y, commit) {
+    setTables((prev) => prev.map((t) => (t.id === id ? { ...t, pos_x: x, pos_y: y } : t)))
+    if (commit) {
+      supabase
+        .from('tables')
+        .update({ pos_x: Math.round(x), pos_y: Math.round(y) })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.error('Error saving position:', error)
+        })
+    }
   }
 
   async function addTable() {
@@ -162,11 +192,7 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
           <button onClick={onBack} className="text-gray-400 hover:text-white py-2">
             ← Πίσω στα μαγαζιά
           </button>
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="flex flex-col gap-1.5 p-2"
-            aria-label="Menu"
-          >
+          <button onClick={() => setMenuOpen(true)} className="flex flex-col gap-1.5 p-2" aria-label="Menu">
             <span className="block w-6 h-0.5 bg-white"></span>
             <span className="block w-6 h-0.5 bg-white"></span>
             <span className="block w-6 h-0.5 bg-white"></span>
@@ -193,26 +219,47 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
           <h1 className="text-xl sm:text-2xl font-bold mb-6">{shop.name}</h1>
         )}
 
-        <button
-          onClick={() => setShowingAddTable(true)}
-          className="bg-white text-black font-semibold px-4 py-3 rounded hover:bg-gray-200 active:bg-gray-300 mb-8"
-        >
-          + Προσθήκη τραπεζιού
-        </button>
+        <div className="flex flex-wrap items-center gap-3 mb-8">
+          <button
+            onClick={() => setShowingAddTable(true)}
+            className="bg-white text-black font-semibold px-4 py-3 rounded hover:bg-gray-200 active:bg-gray-300"
+          >
+            + Προσθήκη τραπεζιού
+          </button>
 
-        {groups.map((group, idx) => (
-          <div key={group.label} className="mb-6">
-            {idx > 0 && <hr className="border-gray-700 mb-6" />}
-            {!(groups.length === 1 && group.label === 'Χωρίς κατηγορία') && (
-              <h2 className="text-gray-400 text-sm uppercase tracking-wide mb-3">{group.label}</h2>
-            )}
-            <div className="grid grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-              {group.tables.map((table) => (
-                <TableTile key={table.id} table={table} onSelectTable={onSelectTable} />
-              ))}
-            </div>
+          <div className="flex bg-gray-900 border border-gray-700 rounded overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-4 py-3 text-sm font-semibold ${viewMode === 'grid' ? 'bg-white text-black' : 'text-gray-300'}`}
+            >
+              Grid
+            </button>
+            <button
+              onClick={() => setViewMode('map')}
+              className={`px-4 py-3 text-sm font-semibold ${viewMode === 'map' ? 'bg-white text-black' : 'text-gray-300'}`}
+            >
+              Χάρτης
+            </button>
           </div>
-        ))}
+        </div>
+
+        {viewMode === 'grid' ? (
+          groups.map((group, idx) => (
+            <div key={group.label} className="mb-6">
+              {idx > 0 && <hr className="border-gray-700 mb-6" />}
+              {!(groups.length === 1 && group.label === 'Χωρίς κατηγορία') && (
+                <h2 className="text-gray-400 text-sm uppercase tracking-wide mb-3">{group.label}</h2>
+              )}
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+                {group.tables.map((table) => (
+                  <TableTile key={table.id} table={table} onSelectTable={onSelectTable} />
+                ))}
+              </div>
+            </div>
+          ))
+        ) : (
+          <TableMap tables={tables} onSelectTable={onSelectTable} onUpdatePosition={updatePosition} />
+        )}
 
         {showingFlavors && (
           <FlavorManager shop={shop} onClose={() => setShowingFlavors(false)} />
@@ -261,23 +308,14 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
 
       <SideMenu open={menuOpen} onClose={() => setMenuOpen(false)}>
         <div className="flex flex-col gap-1 flex-1">
-          <button
-            onClick={() => { setShowingFlavors(true); setMenuOpen(false) }}
-            className="text-left text-white hover:text-gray-300 py-3"
-          >
+          <button onClick={() => { setShowingFlavors(true); setMenuOpen(false) }} className="text-left text-white hover:text-gray-300 py-3">
             Γεύσεις
           </button>
-          <button
-            onClick={() => { setEditingShop(true); setMenuOpen(false) }}
-            className="text-left text-white hover:text-gray-300 py-3"
-          >
+          <button onClick={() => { setEditingShop(true); setMenuOpen(false) }} className="text-left text-white hover:text-gray-300 py-3">
             Επεξεργασία
           </button>
         </div>
-        <button
-          onClick={deleteShop}
-          className="border border-red-900 text-red-800 rounded py-2 font-semibold text-sm"
-        >
+        <button onClick={deleteShop} className="border border-red-900 text-red-800 rounded py-2 font-semibold text-sm">
           Διαγραφή
         </button>
       </SideMenu>
