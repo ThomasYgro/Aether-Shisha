@@ -119,6 +119,8 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
   const [newZoneName, setNewZoneName] = useState('')
   const [showingAddObject, setShowingAddObject] = useState(false)
   const [newObjectName, setNewObjectName] = useState('')
+  const [showingAddFreeform, setShowingAddFreeform] = useState(false)
+  const [newFreeformName, setNewFreeformName] = useState('')
 
   useEffect(() => {
     fetchTables()
@@ -300,11 +302,11 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
   }
 
   async function addFreeformHookah() {
-    const count = tables.filter((t) => t.is_freeform).length
+    if (!newFreeformName.trim()) return
 
     const { data, error } = await supabase
       .from('tables')
-      .insert([{ shop_id: shop.id, name: `Ναργιλές ${count + 1}`, status: 'empty', is_freeform: true }])
+      .insert([{ shop_id: shop.id, name: newFreeformName.trim(), status: 'empty', is_freeform: true }])
       .select()
       .single()
 
@@ -313,6 +315,8 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
       return
     }
 
+    setNewFreeformName('')
+    setShowingAddFreeform(false)
     fetchTables()
     onSelectTable(data)
   }
@@ -389,7 +393,7 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
           </button>
 
           <button
-            onClick={addFreeformHookah}
+            onClick={() => setShowingAddFreeform(true)}
             className="bg-white text-black font-semibold px-4 py-3 rounded hover:bg-gray-200 active:bg-gray-300"
           >
             + Προσθήκη ναργιλέ
@@ -542,6 +546,33 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
                   Άκυρο
                 </button>
                 <button onClick={addObject} className="flex-1 bg-white text-black rounded py-2 font-semibold">
+                  Προσθήκη
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showingAddFreeform && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4">
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm">
+              <h3 className="font-bold mb-4">Νέος ναργιλές</h3>
+              <input
+                type="text"
+                value={newFreeformName}
+                onChange={(e) => setNewFreeformName(e.target.value)}
+                placeholder="π.χ. Μπαρ 1"
+                className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white w-full mb-4 text-base"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowingAddFreeform(false); setNewFreeformName('') }}
+                  className="flex-1 bg-gray-700 rounded py-2"
+                >
+                  Άκυρο
+                </button>
+                <button onClick={addFreeformHookah} className="flex-1 bg-white text-black rounded py-2 font-semibold">
                   Προσθήκη
                 </button>
               </div>
