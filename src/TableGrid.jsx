@@ -70,6 +70,39 @@ function TableTile({ table, onSelectTable }) {
   )
 }
 
+function FreeformBar({ table, onSelectTable }) {
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    if (table.status !== 'active') return
+    const interval = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(interval)
+  }, [table.status])
+
+  let displayStatus = table.status
+  let timeLabel = null
+
+  if (table.status === 'active' && table.started_at) {
+    const elapsedSec = (now - new Date(table.started_at).getTime()) / 1000
+    const remainingSec = 25 * 60 - elapsedSec
+    displayStatus = remainingSec <= 0 ? 'overtime' : 'active'
+    timeLabel = formatTime(remainingSec)
+  }
+
+  return (
+    <div
+      onClick={() => onSelectTable(table)}
+      className={`${statusColors[displayStatus]} rounded-lg flex items-center justify-between px-4 py-3 cursor-pointer active:opacity-80 font-semibold select-none`}
+    >
+      <span>{table.name}</span>
+      <div className="flex items-center gap-3">
+        {timeLabel && <span className="text-sm font-mono">{timeLabel}</span>}
+        {table.status === 'changing_coals' && <span className="text-xs opacity-80">Waiting...</span>}
+      </div>
+    </div>
+  )
+}
+
 function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger }) {
   const [tables, setTables] = useState([])
   const [zones, setZones] = useState([])
@@ -120,7 +153,7 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
 
     const withPositions = await Promise.all(
       data.map(async (t, idx) => {
-        if (t.pos_x == null || t.pos_y == null) {
+        if (!t.is_freeform && (t.pos_x == null || t.pos_y == null)) {
           const x = 20 + (idx % 8) * 110
           const y = 20 + Math.floor(idx / 8) * 110
           await supabase.from('tables').update({ pos_x: x, pos_y: y }).eq('id', t.id)
@@ -266,6 +299,24 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
     }
   }
 
+  async function addFreeformHookah() {
+    const count = tables.filter((t) => t.is_freeform).length
+
+    const { data, error } = await supabase
+      .from('tables')
+      .insert([{ shop_id: shop.id, name: `Ναργιλές ${count + 1}`, status: 'empty', is_freeform: true }])
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error adding freeform hookah:', error)
+      return
+    }
+
+    fetchTables()
+    onSelectTable(data)
+  }
+
   async function saveShopName() {
     if (!shopName.trim()) return
 
@@ -290,8 +341,10 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
     else onShopDeleted()
   }
 
-  const categoryOptions = [...new Set(tables.map((t) => t.category).filter(Boolean))]
-  const groups = groupTables(tables)
+  const mapTables = tables.filter((t) => !t.is_freeform)
+  const freeformTables = tables.filter((t) => t.is_freeform)
+  const categoryOptions = [...new Set(mapTables.map((t) => t.category).filter(Boolean))]
+  const groups = groupTables(mapTables)
 
   return (
     <PullToRefresh onRefresh={fetchTables}>
@@ -327,12 +380,19 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
           <h1 className="text-xl sm:text-2xl font-bold mb-6">{shop.name}</h1>
         )}
 
-        <div className="flex flex-wrap items-center gap-3 mb-8">
+        <div className="flex flex-wrap items-center gap-3 mb-6">
           <button
             onClick={() => setShowingAddTable(true)}
             className="bg-white text-black font-semibold px-4 py-3 rounded hover:bg-gray-200 active:bg-gray-300"
           >
             + Προσθήκη τραπεζιού
+          </button>
+
+          <button
+            onClick={addFreeformHookah}
+            className="bg-white text-black font-semibold px-4 py-3 rounded hover:bg-gray-200 active:bg-gray-300"
+          >
+            + Προσθήκη ναργιλέ
           </button>
 
           {viewMode === 'map' && (
@@ -353,6 +413,14 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
           )}
         </div>
 
+        {freeformTables.length > 0 && (
+          <div className="flex flex-col gap-2 mb-8">
+            {freeformTables.map((table) => (
+              <FreeformBar key={table.id} table={table} onSelectTable={onSelectTable} />
+            ))}
+          </div>
+        )}
+
         {viewMode === 'grid' ? (
           groups.map((group, idx) => (
             <div key={group.label} className="mb-6">
@@ -369,7 +437,7 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
           ))
         ) : (
           <TableMap
-            tables={tables}
+            tables={mapTables}
             zones={zones}
             objects={objects}
             onSelectTable={onSelectTable}
