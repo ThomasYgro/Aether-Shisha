@@ -73,6 +73,7 @@ function TableTile({ table, onSelectTable }) {
 function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger }) {
   const [tables, setTables] = useState([])
   const [zones, setZones] = useState([])
+  const [objects, setObjects] = useState([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [editingShop, setEditingShop] = useState(false)
   const [shopName, setShopName] = useState(shop.name)
@@ -83,10 +84,13 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
   const [viewMode, setViewMode] = useState('grid')
   const [showingAddZone, setShowingAddZone] = useState(false)
   const [newZoneName, setNewZoneName] = useState('')
+  const [showingAddObject, setShowingAddObject] = useState(false)
+  const [newObjectName, setNewObjectName] = useState('')
 
   useEffect(() => {
     fetchTables()
     fetchZones()
+    fetchObjects()
 
     const channel = supabase
       .channel('tables-changes')
@@ -138,6 +142,16 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
     else setZones(data)
   }
 
+  async function fetchObjects() {
+    const { data, error } = await supabase
+      .from('map_objects')
+      .select('*')
+      .eq('shop_id', shop.id)
+
+    if (error) console.error('Error fetching objects:', error)
+    else setObjects(data)
+  }
+
   function updatePosition(id, x, y, commit) {
     setTables((prev) => prev.map((t) => (t.id === id ? { ...t, pos_x: x, pos_y: y } : t)))
     if (commit) {
@@ -184,10 +198,51 @@ function TableGrid({ shop, onBack, onSelectTable, onShopDeleted, refreshTrigger 
     if (error) console.error('Error deleting zone:', error)
     else fetchZones()
   }
-async function renameZone(id, name) {
+
+  async function renameZone(id, name) {
     const { error } = await supabase.from('map_zones').update({ name }).eq('id', id)
     if (error) console.error('Error renaming zone:', error)
     else fetchZones()
+  }
+
+  function updateObjectPosition(id, x, y, commit) {
+    setObjects((prev) => prev.map((o) => (o.id === id ? { ...o, pos_x: x, pos_y: y } : o)))
+    if (commit) {
+      supabase
+        .from('map_objects')
+        .update({ pos_x: Math.round(x), pos_y: Math.round(y) })
+        .eq('id', id)
+        .then(({ error }) => {
+          if (error) console.error('Error saving object position:', error)
+        })
+    }
+  }
+
+  async function addObject() {
+    if (!newObjectName.trim()) return
+
+    const { error } = await supabase
+      .from('map_objects')
+      .insert([{ shop_id: shop.id, name: newObjectName.trim(), pos_x: 20, pos_y: 20 }])
+
+    if (error) console.error('Error adding object:', error)
+    else {
+      setNewObjectName('')
+      setShowingAddObject(false)
+      fetchObjects()
+    }
+  }
+
+  async function renameObject(id, name) {
+    const { error } = await supabase.from('map_objects').update({ name }).eq('id', id)
+    if (error) console.error('Error renaming object:', error)
+    else fetchObjects()
+  }
+
+  async function deleteObject(id) {
+    const { error } = await supabase.from('map_objects').delete().eq('id', id)
+    if (error) console.error('Error deleting object:', error)
+    else fetchObjects()
   }
 
   async function addTable() {
@@ -281,12 +336,20 @@ async function renameZone(id, name) {
           </button>
 
           {viewMode === 'map' && (
-            <button
-              onClick={() => setShowingAddZone(true)}
-              className="bg-gray-700 text-white font-semibold px-4 py-3 rounded hover:bg-gray-600"
-            >
-              + Προσθήκη κατηγορίας
-            </button>
+            <>
+              <button
+                onClick={() => setShowingAddZone(true)}
+                className="bg-gray-700 text-white font-semibold px-4 py-3 rounded hover:bg-gray-600"
+              >
+                + Προσθήκη κατηγορίας
+              </button>
+              <button
+                onClick={() => setShowingAddObject(true)}
+                className="bg-gray-700 text-white font-semibold px-4 py-3 rounded hover:bg-gray-600"
+              >
+                + Προσθήκη αντικειμένου
+              </button>
+            </>
           )}
         </div>
 
@@ -308,21 +371,17 @@ async function renameZone(id, name) {
           <TableMap
             tables={tables}
             zones={zones}
-            onSelectTable={onSelectTable}
-            onUpdatePosition={updatePosition}
-            onUpdateZonePosition={updateZonePosition}
-            onDeleteZone={deleteZone}
-          />
-        )}
-          <TableMap
-            tables={tables}
-            zones={zones}
+            objects={objects}
             onSelectTable={onSelectTable}
             onUpdatePosition={updatePosition}
             onUpdateZonePosition={updateZonePosition}
             onRenameZone={renameZone}
             onDeleteZone={deleteZone}
+            onUpdateObjectPosition={updateObjectPosition}
+            onRenameObject={renameObject}
+            onDeleteObject={deleteObject}
           />
+        )}
 
         {showingFlavors && (
           <FlavorManager shop={shop} onClose={() => setShowingFlavors(false)} />
@@ -388,6 +447,33 @@ async function renameZone(id, name) {
                   Άκυρο
                 </button>
                 <button onClick={addZone} className="flex-1 bg-white text-black rounded py-2 font-semibold">
+                  Προσθήκη
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showingAddObject && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4">
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm">
+              <h3 className="font-bold mb-4">Νέο αντικείμενο</h3>
+              <input
+                type="text"
+                value={newObjectName}
+                onChange={(e) => setNewObjectName(e.target.value)}
+                placeholder="π.χ. Μπαρ"
+                className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white w-full mb-4 text-base"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowingAddObject(false); setNewObjectName('') }}
+                  className="flex-1 bg-gray-700 rounded py-2"
+                >
+                  Άκυρο
+                </button>
+                <button onClick={addObject} className="flex-1 bg-white text-black rounded py-2 font-semibold">
                   Προσθήκη
                 </button>
               </div>

@@ -16,6 +16,7 @@ function formatTime(totalSeconds) {
 }
 
 const TILE_SIZE = 90
+const OBJECT_SIZE = 70
 export const CANVAS_WIDTH = 3000
 export const CANVAS_HEIGHT = 2200
 
@@ -98,6 +99,66 @@ function MapTile({ table, onSelectTable, onPositionChange }) {
   )
 }
 
+function MapObject({ object, onOpen, onPositionChange }) {
+  const [dragging, setDragging] = useState(false)
+  const dragStart = useRef({ x: 0, y: 0, origX: 0, origY: 0 })
+  const moved = useRef(false)
+
+  function handlePointerDown(e) {
+    e.stopPropagation()
+    e.target.setPointerCapture(e.pointerId)
+    moved.current = false
+    dragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      origX: object.pos_x ?? 0,
+      origY: object.pos_y ?? 0,
+    }
+    setDragging(true)
+  }
+
+  function handlePointerMove(e) {
+    if (!dragging) return
+    const dx = e.clientX - dragStart.current.x
+    const dy = e.clientY - dragStart.current.y
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved.current = true
+    let newX = dragStart.current.origX + dx
+    let newY = dragStart.current.origY + dy
+    newX = Math.max(0, Math.min(CANVAS_WIDTH - OBJECT_SIZE, newX))
+    newY = Math.max(0, Math.min(CANVAS_HEIGHT - OBJECT_SIZE, newY))
+    onPositionChange(object.id, newX, newY, false)
+  }
+
+  function handlePointerUp() {
+    if (!dragging) return
+    setDragging(false)
+    if (moved.current) {
+      onPositionChange(object.id, object.pos_x, object.pos_y, true)
+    } else {
+      onOpen(object)
+    }
+  }
+
+  return (
+    <div
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      style={{
+        position: 'absolute',
+        left: object.pos_x ?? 0,
+        top: object.pos_y ?? 0,
+        width: OBJECT_SIZE,
+        height: OBJECT_SIZE,
+        touchAction: 'none',
+      }}
+      className={`bg-white text-black rounded-full flex items-center justify-center font-semibold text-center text-xs p-1 cursor-grab active:cursor-grabbing select-none ${dragging ? 'z-10 shadow-lg' : ''}`}
+    >
+      {object.name}
+    </div>
+  )
+}
+
 function ZoneLabel({ zone, onSelect }) {
   return (
     <>
@@ -161,9 +222,49 @@ function ZoneEditModal({ zone, onClose, onRename, onMove, onDelete }) {
   )
 }
 
-function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZonePosition, onRenameZone, onDeleteZone }) {
+function ObjectEditModal({ object, onClose, onRename, onDelete }) {
+  const [name, setName] = useState(object.name)
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm text-white">
+        <h3 className="font-bold mb-4">Επεξεργασία αντικειμένου</h3>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white w-full mb-5 text-base"
+        />
+        <div className="flex gap-2 mb-3">
+          <button onClick={onClose} className="flex-1 bg-gray-700 rounded py-2">Άκυρο</button>
+          <button onClick={() => onRename(name)} className="flex-1 bg-white text-black rounded py-2 font-semibold">
+            Αποθήκευση
+          </button>
+        </div>
+        <button onClick={onDelete} className="w-full border border-red-900 text-red-800 rounded py-2 text-sm font-semibold">
+          Διαγραφή
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TableMap({
+  tables,
+  zones,
+  objects,
+  onSelectTable,
+  onUpdatePosition,
+  onUpdateZonePosition,
+  onRenameZone,
+  onDeleteZone,
+  onUpdateObjectPosition,
+  onRenameObject,
+  onDeleteObject,
+}) {
   const [zoom, setZoom] = useState(1)
   const [editingZone, setEditingZone] = useState(null)
+  const [editingObject, setEditingObject] = useState(null)
 
   function zoomIn() {
     setZoom((z) => Math.min(1.5, +(z + 0.1).toFixed(2)))
@@ -172,24 +273,38 @@ function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZone
     setZoom((z) => Math.max(0.5, +(z - 0.1).toFixed(2)))
   }
 
-  function handleMove(dx, dy) {
+  function handleZoneMove(dx, dy) {
     const newX = Math.max(0, Math.min(CANVAS_WIDTH - 20, (editingZone.pos_x ?? 0) + dx))
     const newY = Math.max(0, Math.min(CANVAS_HEIGHT - 20, (editingZone.pos_y ?? 0) + dy))
     onUpdateZonePosition(editingZone.id, newX, newY, true)
     setEditingZone({ ...editingZone, pos_x: newX, pos_y: newY })
   }
 
-  function handleRename(name) {
+  function handleZoneRename(name) {
     if (!name.trim()) return
     onRenameZone(editingZone.id, name.trim())
     setEditingZone(null)
   }
 
-  function handleDelete() {
+  function handleZoneDelete() {
     const confirmed = window.confirm(`Διαγραφή κατηγορίας "${editingZone.name}";`)
     if (confirmed) {
       onDeleteZone(editingZone.id)
       setEditingZone(null)
+    }
+  }
+
+  function handleObjectRename(name) {
+    if (!name.trim()) return
+    onRenameObject(editingObject.id, name.trim())
+    setEditingObject(null)
+  }
+
+  function handleObjectDelete() {
+    const confirmed = window.confirm(`Διαγραφή αντικειμένου "${editingObject.name}";`)
+    if (confirmed) {
+      onDeleteObject(editingObject.id)
+      setEditingObject(null)
     }
   }
 
@@ -221,6 +336,9 @@ function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZone
             {zones.map((zone) => (
               <ZoneLabel key={zone.id} zone={zone} onSelect={setEditingZone} />
             ))}
+            {objects.map((object) => (
+              <MapObject key={object.id} object={object} onOpen={setEditingObject} onPositionChange={onUpdateObjectPosition} />
+            ))}
             {tables.map((table) => (
               <MapTile key={table.id} table={table} onSelectTable={onSelectTable} onPositionChange={onUpdatePosition} />
             ))}
@@ -232,9 +350,18 @@ function TableMap({ tables, zones, onSelectTable, onUpdatePosition, onUpdateZone
         <ZoneEditModal
           zone={editingZone}
           onClose={() => setEditingZone(null)}
-          onRename={handleRename}
-          onMove={handleMove}
-          onDelete={handleDelete}
+          onRename={handleZoneRename}
+          onMove={handleZoneMove}
+          onDelete={handleZoneDelete}
+        />
+      )}
+
+      {editingObject && (
+        <ObjectEditModal
+          object={editingObject}
+          onClose={() => setEditingObject(null)}
+          onRename={handleObjectRename}
+          onDelete={handleObjectDelete}
         />
       )}
     </div>
