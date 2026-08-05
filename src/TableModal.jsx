@@ -1,14 +1,36 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 
-function TableModal({ shop, table, onClose }) {
+function TableModal({ shop, table: initialTable, onClose }) {
+  const [table, setTable] = useState(initialTable)
   const [flavors, setFlavors] = useState([])
-  const [selectedFlavorIds, setSelectedFlavorIds] = useState(table.selected_flavor_ids || [])
+  const [selectedFlavorIds, setSelectedFlavorIds] = useState(initialTable.selected_flavor_ids || [])
   const [now, setNow] = useState(Date.now())
   const [editingTable, setEditingTable] = useState(false)
-  const [editName, setEditName] = useState(table.name)
-  const [editCategory, setEditCategory] = useState(table.category || '')
-  const [notes, setNotes] = useState(table.notes || '')
+  const [editName, setEditName] = useState(initialTable.name)
+  const [editCategory, setEditCategory] = useState(initialTable.category || '')
+  const [notes, setNotes] = useState(initialTable.notes || '')
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`table-modal-${initialTable.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tables', filter: `id=eq.${initialTable.id}` },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            onClose()
+          } else {
+            setTable(payload.new)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [initialTable.id])
 
   useEffect(() => {
     if (table.status !== 'active') return
@@ -103,8 +125,6 @@ function TableModal({ shop, table, onClose }) {
 
     if (error) console.error('Error updating table:', error)
     else {
-      table.name = editName.trim()
-      table.category = editCategory.trim() || null
       setEditingTable(false)
     }
   }
@@ -171,11 +191,7 @@ function TableModal({ shop, table, onClose }) {
 
         {table.status === 'empty' && (
           <>
-            <FlavorPicker
-              flavors={flavors}
-              selectedFlavorIds={selectedFlavorIds}
-              toggleFlavor={toggleFlavor}
-            />
+            <FlavorPicker flavors={flavors} selectedFlavorIds={selectedFlavorIds} toggleFlavor={toggleFlavor} />
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
@@ -225,12 +241,7 @@ function TableModal({ shop, table, onClose }) {
 
         {table.status === 'changing_coals' && (
           <>
-            <FlavorPicker
-              flavors={flavors}
-              selectedFlavorIds={selectedFlavorIds}
-              toggleFlavor={toggleFlavor}
-              readOnly
-            />
+            <FlavorPicker flavors={flavors} selectedFlavorIds={selectedFlavorIds} toggleFlavor={toggleFlavor} readOnly />
             {notes && (
               <div className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm mt-3">
                 {notes}
