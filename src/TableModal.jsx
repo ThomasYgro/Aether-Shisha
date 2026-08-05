@@ -48,16 +48,11 @@ function TableModal({ shop, table, onClose }) {
   }
 
   async function startHookah() {
-    const { error } = await supabase
-      .from('tables')
-      .update({
-        selected_flavor_ids: selectedFlavorIds,
-        status: 'active',
-        started_at: new Date().toISOString(),
-        coals_changed_at: null,
-        notes: notes.trim() || null,
-      })
-      .eq('id', table.id)
+    const { error } = await supabase.rpc('start_table_session', {
+      p_table_id: table.id,
+      p_flavor_ids: selectedFlavorIds,
+      p_notes: notes.trim() || null,
+    })
 
     if (error) console.error('Error starting hookah:', error)
     else onClose()
